@@ -1,0 +1,42 @@
+{
+  "name": "bpmn-engine-extensions",
+  "version": "0.0.1",
+  "description": "Extensions for bpmn-engine",
+  "main": "index.js",
+  "scripts": {
+    "test": "mocha && eslint . --cache"
+  },
+  "keywords": [
+    "bpmn-engine",
+    "extensions",
+    "camunda"
+  ],
+  "author": "Pål Edman <pal.edman@outlook.com>",
+  "license": "BSD-3-Clause",
+  "files": [
+    "API.md",
+    "index.js",
+    "LICENSE",
+    "README.md",
+    "resources/"
+  ],
+  "devDependencies": {
+    "babel": "^6.23.0",
+    "babel-preset-env": "^1.6.1",
+    "babel-preset-node8": "^1.2.0",
+    "babel-register": "^6.26.0",
+    "bpmn-engine": "file:../engine",
+    "bpmn-moddle": "^0.14.0",
+    "chai": "^4.1.2",
+    "eslint": "^4.11.0",
+    "mocha": "^4.0.1",
+    "mocha-cakes-2": "^2.1.0",
+    "nock": "^9.1.0",
+    "nyc": "^11.3.0",
+    "request": "^2.83.0"
+  },
+  "dependencies": {
+    "camunda-bpmn-moddle": "^0.13.0",
+    "debug": "^3.1.0"
+  }
+}
