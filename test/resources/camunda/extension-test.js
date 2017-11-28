@@ -1,61 +1,19 @@
 'use strict';
 
+const factory = require('../../helpers/factory');
+const nock = require('nock');
+const testHelpers = require('../../helpers/testHelpers');
 const {camunda} = require('../../../resources');
+const {EventEmitter} = require('events');
 const {Engine, Definition} = require('bpmn-engine');
-const {getDefinition} = require('../../helpers/testHelpers');
+
+const {getDefinition} = testHelpers;
 
 const extensions = {
   camunda
 };
 
-describe('io', () => {
-  describe('issue #5 - the type map always are passed as undefined', () => {
-    it('solution', (done) => {
-      const source = `
-      <?xml version="1.0" encoding="UTF-8"?>
-      <definitions xmlns="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:camunda="http://camunda.org/schema/1.0/bpmn">
-        <process id="theProcess" isExecutable="true">
-          <serviceTask id="Task_15g4wm5" name="Dummy Task" implementation="\${services.dummy}">
-            <extensionElements>
-              <camunda:inputOutput>
-                <camunda:inputParameter name="templateId">template_1234</camunda:inputParameter>
-                <camunda:inputParameter name="templateArgs">
-                  <camunda:map>
-                    <camunda:entry key="url"><![CDATA[\${services.getUrl('task1')}]]></camunda:entry>
-                  </camunda:map>
-                </camunda:inputParameter>
-                <camunda:outputParameter name="serviceResult">\${result}</camunda:outputParameter>
-              </camunda:inputOutput>
-            </extensionElements>
-          </serviceTask>
-        </process>
-      </definitions>`;
-      const engine = new Engine({
-        source,
-        extensions
-      });
-
-      engine.execute({
-        services: {
-          dummy: (executionContext, serviceCallback) => {
-            serviceCallback(null, 'dummy');
-          },
-          getUrl: (path) => {
-            return `http://example.com/${path}`;
-          }
-        },
-        variables: {
-          emailAddress: 'lisa@example.com'
-        }
-      });
-
-      engine.once('end', (execution) => {
-        expect(execution.getOutput().serviceResult).to.eql(['dummy']);
-        done();
-      });
-    });
-  });
-
+describe('Camunda extension', () => {
   describe('behavior', () => {
     const source = `
     <?xml version="1.0" encoding="UTF-8"?>
@@ -543,4 +501,324 @@ describe('io', () => {
     });
 
   });
+
+  describe('issue-19 - on error', () => {
+    let services;
+    const source = factory.resource('issue-19-2.bpmn');
+    before((done) => {
+      testHelpers.statusCodeOk = (statusCode) => {
+        return statusCode === 200;
+      };
+      testHelpers.extractErrorCode = (errorMessage) => {
+        if (!errorMessage) return;
+        const codeMatch = errorMessage.match(/^([A-Z_]+):.+/);
+        if (codeMatch) return codeMatch[1];
+      };
+
+      services = {
+        get: {
+          module: 'request',
+          fnName: 'get'
+        },
+        statusCodeOk: {
+          module: require.resolve('../../helpers/testHelpers'),
+          fnName: 'statusCodeOk'
+        },
+        extractErrorCode: {
+          module: require.resolve('../../helpers/testHelpers'),
+          fnName: 'extractErrorCode'
+        }
+      };
+
+      done();
+    });
+
+    it('completes when returning to request after resume', (done) => {
+      testHelpers.statusCodeOk = (statusCode) => {
+        return statusCode === 200;
+      };
+
+      let state;
+      const engine = Engine({
+        source,
+        extensions
+      });
+      const listener = new EventEmitter();
+
+      listener.on('start', () => {
+        state = engine.getState();
+      });
+
+      listener.once('wait-waitForSignalTask', () => {
+        state = engine.getState();
+        engine.stop();
+      });
+
+      engine.once('end', () => {
+        const listener2 = new EventEmitter();
+        listener2.once('wait-waitForSignalTask', (activityApi) => {
+          activityApi.signal();
+        });
+
+        nock('http://example.com')
+          .get('/api')
+          .reply(200, {
+            status: 'OK'
+          });
+
+        const engine2 = Engine.resume(state, {
+          extensions,
+          listener: listener2
+        });
+        engine2.once('end', (execution) => {
+          expect(execution.getOutput()).to.eql({
+            statusCode: 200,
+            body: {
+              status: 'OK'
+            },
+            retry: true
+          });
+          done();
+        });
+      });
+
+      nock('http://example.com')
+        .get('/api')
+        .reply(502);
+
+      engine.execute({
+        listener,
+        services,
+        variables: {
+          apiUrl: 'http://example.com/api',
+          timeout: 'PT0.1S'
+        }
+      });
+
+    });
+
+    it('caught error is saved to variables', (done) => {
+      let state;
+      const engine = Engine({
+        source,
+        extensions
+      });
+      const listener = new EventEmitter();
+
+      listener.on('start', () => {
+        state = engine.getState();
+      });
+
+      listener.once('wait-waitForSignalTask', () => {
+        state = engine.getState();
+        engine.stop();
+      });
+
+      engine.once('end', () => {
+        const listener2 = new EventEmitter();
+        listener2.once('wait-waitForSignalTask', (task) => {
+          task.signal();
+        });
+
+        nock('http://example.com')
+          .get('/api')
+          .reply(200, {
+            status: 'OK'
+          });
+
+        const engine2 = Engine.resume(state, {
+          extensions,
+          listener: listener2
+        });
+        engine2.once('end', (execution2, definitionExecution) => {
+          expect(execution2.getOutput()).to.eql({
+            retry: true,
+            errorCode: 'REQ_FAIL',
+            requestErrorMessage: 'REQ_FAIL: Error message',
+            statusCode: 200,
+            body: {
+              status: 'OK'
+            }
+          });
+          expect(definitionExecution.getChildState('terminateEvent').taken).to.be.undefined;
+          expect(definitionExecution.getChildState('end').taken).to.be.true;
+          done();
+        });
+      });
+
+      nock('http://example.com')
+        .get('/api')
+        .replyWithError(new Error('REQ_FAIL: Error message'));
+
+      engine.execute({
+        listener,
+        variables: {
+          apiUrl: 'http://example.com/api',
+          timeout: 'PT0.1S'
+        },
+        services: services
+      });
+    });
+
+    it('takes decision based on error', (done) => {
+      let state;
+      const engine = Engine({
+        source,
+        extensions
+      });
+      const listener = new EventEmitter();
+
+      listener.on('start', () => {
+        state = engine.getState();
+      });
+
+      listener.once('wait-waitForSignalTask', () => {
+        state = engine.getState();
+        engine.stop();
+      });
+
+      engine.once('end', () => {
+        const listener2 = new EventEmitter();
+        listener2.once('wait-waitForSignalTask', (activityApi) => {
+          activityApi.signal();
+        });
+
+        nock('http://example.com')
+          .get('/api')
+          .replyWithError(new Error('RETRY_FAIL: Error message'));
+
+        const engine2 = Engine.resume(state, {
+          extensions,
+          listener: listener2
+        });
+        engine2.once('end', (execution, definitionExecution) => {
+          expect(definitionExecution.getOutput()).to.eql({
+            retry: true,
+            errorCode: 'RETRY_FAIL',
+            requestErrorMessage: 'RETRY_FAIL: Error message'
+          });
+          expect(definitionExecution.getChildState('terminateEvent').taken).to.be.true;
+          expect(definitionExecution.getChildState('end').taken).to.be.undefined;
+          done();
+        });
+      });
+
+      nock('http://example.com')
+        .get('/api')
+        .replyWithError(new Error('REQ_FAIL: Error message'));
+
+      engine.execute({
+        listener,
+        variables: {
+          apiUrl: 'http://example.com/api',
+          timeout: 'PT0.1S'
+        },
+        services
+      });
+    });
+  });
+
+  describe('issue 23', () => {
+    it('looped exclusiveGateway with io should trigger end event', (done) => {
+      const source = `
+      <?xml version="1.0" encoding="UTF-8"?>
+        <definitions xmlns="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xmlns:camunda="http://camunda.org/schema/1.0/bpmn">
+        <process id="issue-23" isExecutable="true">
+          <startEvent id="start" />
+          <task id="task1" />
+          <task id="task2">
+            <extensionElements>
+              <camunda:InputOutput>
+                <camunda:outputParameter name="tookDecision">\${variables.decision}</camunda:outputParameter>
+              </camunda:InputOutput>
+            </extensionElements>
+          </task>
+          <exclusiveGateway id="decision" default="flow4">
+            <extensionElements>
+              <camunda:InputOutput>
+                <camunda:outputParameter name="decision">\${true}</camunda:outputParameter>
+              </camunda:InputOutput>
+            </extensionElements>
+          </exclusiveGateway>
+          <endEvent id="end" />
+          <sequenceFlow id="flow1" sourceRef="start" targetRef="task1" />
+          <sequenceFlow id="flow2" sourceRef="task1" targetRef="task2" />
+          <sequenceFlow id="flow3" sourceRef="task2" targetRef="decision" />
+          <sequenceFlow id="flow4" sourceRef="decision" targetRef="task1" />
+          <sequenceFlow id="flow5" sourceRef="decision" targetRef="end">
+            <conditionExpression xsi:type="tFormalExpression">\${variables.tookDecision}</conditionExpression>
+          </sequenceFlow>
+        </process>
+      </definitions>`;
+
+      const engine = new Engine({
+        source,
+        extensions
+      });
+      engine.once('end', (execution, definitionExecution) => {
+        expect(definitionExecution.getChildState('end').taken).to.be.true;
+        done();
+      });
+
+      const listener = new EventEmitter();
+      let taskCount = 0;
+      listener.on('start-task1', (a) => {
+        taskCount++;
+        if (taskCount > 2) {
+          throw new Error(`Too many <${a.id}> starts`);
+        }
+      });
+
+      engine.execute({
+        listener
+      });
+    });
+  });
+
+  describe('activity io', () => {
+    let definition;
+    before(async () => {
+      const source = factory.resource('service-task-io-types.bpmn').toString();
+      definition = await getDefinition(source, extensions);
+    });
+
+    it('getInput() without defined io returns undefined', (done) => {
+      const task = definition.getChildActivityById('StartEvent_1');
+      expect(task).to.have.property('io');
+      expect(task.io.activate(task).getInput()).to.be.undefined;
+      done();
+    });
+
+    it('getOutput() without defined io returns nothing', (done) => {
+      const task = definition.getChildActivityById('StartEvent_1');
+      expect(task.io.activate(task).getOutput()).to.be.undefined;
+      done();
+    });
+
+    it('setOutputValue() assigns result', (done) => {
+      const task = definition.getChildActivityById('StartEvent_1');
+      const activatedIo = task.io.activate(task);
+
+      activatedIo.setOutputValue('name', 'me');
+      expect(activatedIo.getOutput()).to.eql({name: 'me'});
+      done();
+    });
+
+    it('setOutputValue() assigns to other result', (done) => {
+      const task = definition.getChildActivityById('StartEvent_1');
+      const activatedIo = task.io.activate(task);
+      activatedIo.setResult({
+        input: 1
+      });
+      activatedIo.setOutputValue('name', 'me');
+      expect(activatedIo.getOutput()).to.eql({
+        input: 1,
+        name: 'me'
+      });
+
+      done();
+    });
+  });
+
 });

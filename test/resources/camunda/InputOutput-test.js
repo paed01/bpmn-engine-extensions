@@ -1,7 +1,8 @@
 'use strict';
 
-const {camunda} = require('../../../resources');
 const InputOutput = require('../../../resources/camunda/InputOutput');
+const {camunda} = require('../../../resources');
+const {Engine} = require('bpmn-engine');
 const {Environment} = require('bpmn-engine');
 const {getDefinition} = require('../../helpers/testHelpers');
 
@@ -356,4 +357,48 @@ describe('Activity InputOutput', () => {
     });
   });
 
+  it('supports type map', (done) => {
+    const source = `
+    <?xml version="1.0" encoding="UTF-8"?>
+    <definitions xmlns="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:camunda="http://camunda.org/schema/1.0/bpmn">
+      <process id="theProcess" isExecutable="true">
+        <serviceTask id="Task_15g4wm5" name="Dummy Task" implementation="\${services.dummy}">
+          <extensionElements>
+            <camunda:inputOutput>
+              <camunda:inputParameter name="templateId">template_1234</camunda:inputParameter>
+              <camunda:inputParameter name="templateArgs">
+                <camunda:map>
+                  <camunda:entry key="url"><![CDATA[\${services.getUrl('task1')}]]></camunda:entry>
+                </camunda:map>
+              </camunda:inputParameter>
+              <camunda:outputParameter name="serviceResult">\${result}</camunda:outputParameter>
+            </camunda:inputOutput>
+          </extensionElements>
+        </serviceTask>
+      </process>
+    </definitions>`;
+    const engine = new Engine({
+      source,
+      extensions
+    });
+
+    engine.execute({
+      services: {
+        dummy: (executionContext, serviceCallback) => {
+          serviceCallback(null, 'dummy');
+        },
+        getUrl: (path) => {
+          return `http://example.com/${path}`;
+        }
+      },
+      variables: {
+        emailAddress: 'lisa@example.com'
+      }
+    });
+
+    engine.once('end', (execution) => {
+      expect(execution.getOutput().serviceResult).to.eql(['dummy']);
+      done();
+    });
+  });
 });
