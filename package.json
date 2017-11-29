@@ -1,15 +1,16 @@
 {
   "name": "bpmn-engine-extensions",
-  "version": "0.0.1",
+  "version": "1.0.0",
   "description": "Extensions for bpmn-engine",
   "main": "index.js",
   "scripts": {
-    "test": "mocha && eslint . --cache"
+    "test": "mocha && eslint . --cache",
+    "toc": "node scripts/generate-api-toc ./API.md,./docs/Examples.md,./docs/Form.md"
   },
   "keywords": [
     "bpmn-engine",
     "extensions",
-    "camunda"
+    "camunda extension"
   ],
   "author": "Pål Edman <pal.edman@outlook.com>",
   "license": "BSD-3-Clause",
@@ -26,12 +27,12 @@
     "babel-preset-node8": "^1.2.0",
     "babel-register": "^6.26.0",
     "bpmn-engine": "^5.0.0-rc1",
-    "bpmn-moddle": "^1.1.1",
     "chai": "^4.1.2",
-    "eslint": "^4.11.0",
+    "eslint": "^4.12.0",
+    "markdown-toc": "^1.2.0",
     "mocha": "^4.0.1",
     "mocha-cakes-2": "^2.1.0",
-    "nock": "^9.1.0",
+    "nock": "^9.1.3",
     "nyc": "^11.3.0",
     "request": "^2.83.0"
   },

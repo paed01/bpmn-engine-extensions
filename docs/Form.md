@@ -29,6 +29,7 @@ Form is referenced by key.
 ```javascript
 const {Engine} = require('bpmn-engine');
 const {EventEmitter} = require('events');
+const camundaExt = require('bpmn-engine-extensions/resources/camunda');
 
 const source = `
 <?xml version="1.0" encoding="UTF-8"?>
@@ -52,12 +53,13 @@ const source = `
 
 const engine = new Engine({
   source,
-  moddleOptions: {
-    camunda: require('camunda-bpmn-moddle/resources/camunda')
+  extensions: {
+    camunda: camundaExt
   }
 });
 
 const listener = new EventEmitter();
+
 listener.on('wait', (activityApi) => {
   const {form, formKey, id, signal, type} = activityApi;
 

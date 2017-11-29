@@ -1,14 +1,75 @@
-<!-- version -->
-# 1.0.0 API Reference
-<!-- versionstop -->
+Examples
+========
 
 <!-- toc -->
 
-- [Camunda form](#camunda-form-example)
+- [ServiceTask](#servicetask)
 
 <!-- tocstop -->
 
-# Camunda form example
+# Camunda ServiceTask
+
+In the example `request.get` will be called with `variables.apiPath`. The result is saved on `variables.result`.
+
+```javascript
+const {Engine} = require('bpmn-engine');
+
+const source = `
+<?xml version="1.0" encoding="UTF-8"?>
+<definitions xmlns="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:camunda="http://camunda.org/schema/1.0/bpmn" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+  <process id="Process_1" isExecutable="true">
+    <startEvent id="start" />
+    <serviceTask id="serviceTask" name="Get" camunda:expression="\${services.getRequest}">
+      <extensionElements>
+        <camunda:inputOutput>
+          <camunda:inputParameter name="uri">
+            <camunda:script scriptFormat="JavaScript">variables.apiPath</camunda:script>
+          </camunda:inputParameter>
+          <camunda:outputParameter name="result">
+            <camunda:script scriptFormat="JavaScript"><![CDATA[
+'use strict';
+var result = {
+  statusCode: result[0].statusCode,
+  body: result[0].statusCode === 200 ? JSON.parse(result[1]) : undefined
+};
+result;
+              ]]>
+            </camunda:script>
+          </camunda:outputParameter>
+        </camunda:inputOutput>
+      </extensionElements>
+    </serviceTask>
+    <endEvent id="end" />
+    <sequenceFlow id="flow1" sourceRef="start" targetRef="serviceTask" />
+    <sequenceFlow id="flow2" sourceRef="serviceTask" targetRef="end" />
+  </process>
+</definitions>`;
+
+const engine = Engine({
+  source,
+  extensions: {
+    camunda: require('bpmn-engine-extensions/resources/camunda')
+  }
+});
+
+engine.execute({
+  variables: {
+    apiPath: 'http://example.com/test'
+  },
+  services: {
+    getRequest: {
+      module: 'request',
+      fnName: 'get'
+    }
+  }
+});
+
+engine.once('end', (execution) => {
+  console.log('Script task output:', execution.getOutput());
+});
+```
+
+# Camunda form
 
 ```javascript
 'use strict';
