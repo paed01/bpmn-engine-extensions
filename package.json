@@ -1,11 +1,12 @@
 {
   "name": "bpmn-engine-extensions",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Extensions for bpmn-engine",
   "main": "index.js",
   "scripts": {
     "test": "mocha && eslint . --cache",
-    "toc": "node scripts/generate-api-toc ./API.md,./docs/Examples.md,./docs/Form.md"
+    "toc": "node scripts/generate-api-toc ./API.md,./docs/Examples.md,./docs/Form.md",
+    "test-md": "node scripts/test-markdown ./API.md && node scripts/test-markdown ./docs/Examples.md"
   },
   "keywords": [
     "bpmn-engine",
@@ -14,6 +15,10 @@
   ],
   "author": "Pål Edman <pal.edman@outlook.com>",
   "license": "BSD-3-Clause",
+  "repository": {
+    "type": "git",
+    "url": "git://github.com/paed01/bpmn-engine-extensions"
+  },
   "files": [
     "API.md",
     "index.js",
@@ -26,18 +31,21 @@
     "babel-preset-env": "^1.6.1",
     "babel-preset-node8": "^1.2.0",
     "babel-register": "^6.26.0",
-    "bpmn-engine": "^5.0.0-rc1",
+    "bpmn-engine": "^5.0.0-rc2",
     "chai": "^4.1.2",
-    "eslint": "^4.12.0",
+    "eslint": "^4.12.1",
     "markdown-toc": "^1.2.0",
     "mocha": "^4.0.1",
     "mocha-cakes-2": "^2.1.0",
-    "nock": "^9.1.3",
+    "nock": "^9.1.4",
     "nyc": "^11.3.0",
     "request": "^2.83.0"
   },
   "dependencies": {
     "camunda-bpmn-moddle": "^0.13.0",
     "debug": "^3.1.0"
+  },
+  "peerDependencies": {
+    "bpmn-engine": ">=5.x"
   }
 }
