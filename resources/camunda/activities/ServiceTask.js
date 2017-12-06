@@ -12,7 +12,10 @@ module.exports = function ServiceTask(extensions, activityElement, parentContext
 
   if (!io && resultVariable) {
     extensions.io = ResultVariableIo(activityElement, parentContext);
+  } if (io && io.allowReturnInputContext) {
+    io.allowReturnInputContext(true);
   }
+
   extensions.service = loadService();
 
   return extensions;

@@ -12,15 +12,24 @@ module.exports = function InputOutput(activity, {environment}, form) {
   const inputParameters = activity.inputParameters && activity.inputParameters.map((parm) => Parameter(parm, environment));
   const outputParameters = activity.outputParameters && activity.outputParameters.map((parm) => Parameter(parm, environment));
 
+  let returnInputContext = false;
+
   return {
     id,
     type,
     activate,
+    allowReturnInputContext,
     resume: resumeIo
   };
 
   function resumeIo(parentApi, inputContext, ioState) {
     return activate(parentApi, inputContext).resume(ioState);
+  }
+
+  function allowReturnInputContext(value) {
+    if (value === undefined) return returnInputContext;
+    returnInputContext = !!value;
+    return returnInputContext;
   }
 
   function activate(parentApi, inputContext) {
@@ -54,7 +63,11 @@ module.exports = function InputOutput(activity, {environment}, form) {
     }
 
     function getInput() {
-      return internalGetInput(true) || {};
+      const result = internalGetInput(true);
+      if (!result && returnInputContext) {
+        return inputContext;
+      }
+      return result || {};
     }
 
     function internalGetInput(returnUndefined) {

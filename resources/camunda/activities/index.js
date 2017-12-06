@@ -9,6 +9,7 @@ module.exports = function Activity(extensions, activityElement, parentContext) {
   const {form, io, properties} = extensions;
 
   if ($type === 'bpmn:ServiceTask') return ServiceTask({io, properties}, activityElement, parentContext);
+  else if ($type === 'bpmn:ScriptTask') return ServiceTask({io, properties}, activityElement, parentContext);
   else if ($type === 'bpmn:BoundaryEvent') return BoundaryEvent({io, properties}, activityElement, parentContext);
   return Base();
 
