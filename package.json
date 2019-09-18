@@ -1,6 +1,6 @@
 {
   "name": "bpmn-engine-extensions",
-  "version": "1.1.0",
+  "version": "1.1.1",
   "description": "Extensions for bpmn-engine",
   "main": "index.js",
   "scripts": {
@@ -13,7 +13,10 @@
     "extensions",
     "camunda extension"
   ],
-  "author": "Pål Edman <pal.edman@outlook.com>",
+  "author": {
+    "name": "Pål Edman",
+    "url": "https://github.com/paed01"
+  },
   "license": "BSD-3-Clause",
   "repository": {
     "type": "git",
